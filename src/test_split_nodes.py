@@ -35,26 +35,21 @@ class TestSplitNodes(unittest.TestCase):
             ],
             new_nodes,
         )
-
+    
     def test_split_images_single(self):
         node = TextNode(
-            "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png)",
+            "This is text with a single image ![image](https://i.imgur.com/zjjcJKZ.png)",
             TextType.TEXT,
         )
         new_nodes = split_nodes_image([node])
         self.assertListEqual(
             [
-                TextNode("This is text with an ", TextType.TEXT),
+                TextNode("This is text with a single image ", TextType.TEXT),
                 TextNode("image", TextType.IMAGE, "https://i.imgur.com/zjjcJKZ.png"),
             ],
             new_nodes,
         )
 
-    def test_split_images_no_images(self):
-        node = TextNode("This is just text.", TextType.TEXT)
-        new_nodes = split_nodes_image([node])
-        self.assertListEqual([node], new_nodes)
-        
     def test_split_links(self):
         node = TextNode(
             "This is text with a link [to boot dev](https://www.boot.dev) and [to youtube](https://www.youtube.com/@bootdotdev)",
@@ -103,6 +98,24 @@ class TestSplitNodes(unittest.TestCase):
         )
     
     def test_split_links_no_links(self):
-        node = TextNode("This is just text.", TextType.TEXT)
+        node = TextNode("This is text with no links", TextType.TEXT)
         new_nodes = split_nodes_link([node])
         self.assertListEqual([node], new_nodes)
+    
+    def test_split_nodes_link_and_image_interspersed(self):
+        node = TextNode("this is text with an [link](https://www.example.com) and an ![image](https://i.imgur.com/zjjcJKZ.png) here", TextType.TEXT)
+        nodes_with_links = split_nodes_link([node])
+        nodes_with_images_and_links = split_nodes_image(nodes_with_links)
+        self.assertListEqual(
+            [
+                TextNode("this is text with an ", TextType.TEXT),
+                TextNode("link", TextType.LINK, "https://www.example.com"),
+                TextNode(" and an ", TextType.TEXT),
+                TextNode("image", TextType.IMAGE, "https://i.imgur.com/zjjcJKZ.png"),
+                TextNode(" here", TextType.TEXT)
+            ],
+            nodes_with_images_and_links,
+        )
+
+if __name__ == "__main__":
+    unittest.main()
