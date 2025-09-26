@@ -3,46 +3,50 @@ from textnode import TextNode, TextType
 from block_type import BlockType
 from htmlnode import ParentNode, LeafNode, text_node_to_html_node
 
+def text_to_textnodes(text):
+    nodes = [TextNode(text, TextType.TEXT)]
+    nodes = split_nodes_delimiter(nodes, "**", TextType.BOLD)
+    nodes = split_nodes_delimiter(nodes, "*", TextType.ITALIC)
+    nodes = split_nodes_delimiter(nodes, "__", TextType.BOLD)
+    # NEW LINE ADDED: Handle italics using the underscore delimiter
+    nodes = split_nodes_delimiter(nodes, "_", TextType.ITALIC) 
+    nodes = split_nodes_delimiter(nodes, "`", TextType.CODE)
+    nodes = split_nodes_image(nodes)
+    nodes = split_nodes_link(nodes)
+    return nodes
+def text_to_children(text):
+    text_nodes = text_to_textnodes(text)
+    html_nodes = []
+    for node in text_nodes:
+        html_nodes.append(text_node_to_html_node(node))
+    return html_nodes
 
 def split_nodes_delimiter(old_nodes, delimiter, text_type):
     new_nodes = []
-    for node in old_nodes:
-        if node.text_type != TextType.TEXT:
-            new_nodes.append(node)
+    for old_node in old_nodes:
+        if old_node.text_type != TextType.TEXT:
+            new_nodes.append(old_node)
             continue
         
-        # Use a regex to find all matches of the delimiter
-        # This is more robust than a simple split
-        # The regex pattern captures the text between delimiters
-        pattern = re.escape(delimiter) + r"(.*?)" + re.escape(delimiter)
-        parts = re.split(f"({pattern})", node.text)
-
-        # Check for invalid syntax
+        parts = old_node.text.split(delimiter)
         if len(parts) % 2 == 0:
             raise ValueError(f"Invalid markdown syntax: missing closing '{delimiter}' delimiter")
-
-        # Process the parts
+        
         for i, part in enumerate(parts):
-            if i % 2 == 0:  # Text outside of delimiters
+            if i % 2 == 0:
                 if part:
                     new_nodes.append(TextNode(part, TextType.TEXT))
-            else:  # Text inside of delimiters
-                # Check for empty content inside the delimiters
-                if part:
-                    new_nodes.append(TextNode(part, text_type))
-                else:
-                    # Handle empty markdown like **
-                    new_nodes.append(TextNode(part, TextType.TEXT))
-
-    return new_nodes    
+            else:
+                new_nodes.append(TextNode(part, text_type))
+    return new_nodes
 
 def extract_markdown_images(text):
-    regex = r"!\\[(.*?)\\]\\((.*?)\\)"
+    regex = r"!\[(.*?)\]\((.*?)\)"
     matches = re.findall(regex, text)
     return matches
 
 def extract_markdown_links(text):
-    regex = r"(?<!\\!)\\[(.*?)\\]\\((.*?)\\)"
+    regex = r"(?<!\!)\[(.*?)\]\((.*?)\)"
     matches = re.findall(regex, text)
     return matches
 
@@ -53,26 +57,24 @@ def split_nodes_image(old_nodes):
             new_nodes.append(old_node)
             continue
         
-        images = extract_markdown_images(old_node.text)
-        if len(images) == 0:
+        remaining_text = old_node.text
+        matches = extract_markdown_images(remaining_text)
+        if not matches:
             new_nodes.append(old_node)
             continue
 
-        text = old_node.text
-        for alt_text, url in images:
-            parts = text.split(f"![{alt_text}]({url})", 1)
-            if len(parts) != 2:
-                raise ValueError("Invalid markdown syntax for image")
-            if parts[0]:
-                new_nodes.append(TextNode(parts[0], TextType.TEXT))
+        for alt_text, url in matches:
+            parts = remaining_text.split(f"![{alt_text}]({url})", 1)
+            before_image_text = parts[0]
+            if before_image_text:
+                new_nodes.append(TextNode(before_image_text, TextType.TEXT))
             new_nodes.append(TextNode(alt_text, TextType.IMAGE, url))
-            text = parts[1]
+            remaining_text = parts[1]
         
-        if text:
-            new_nodes.append(TextNode(text, TextType.TEXT))
-    
-    return new_nodes
+        if remaining_text:
+            new_nodes.append(TextNode(remaining_text, TextType.TEXT))
 
+    return new_nodes
 
 def split_nodes_link(old_nodes):
     new_nodes = []
@@ -81,101 +83,84 @@ def split_nodes_link(old_nodes):
             new_nodes.append(old_node)
             continue
         
-        links = extract_markdown_links(old_node.text)
-        if len(links) == 0:
+        remaining_text = old_node.text
+        matches = extract_markdown_links(remaining_text)
+        if not matches:
             new_nodes.append(old_node)
             continue
-        
-        text = old_node.text
-        for link_text, url in links:
-            parts = text.split(f"[{link_text}]({url})", 1)
-            if len(parts) != 2:
-                raise ValueError("Invalid markdown syntax for link")
-            if parts[0]:
-                new_nodes.append(TextNode(parts[0], TextType.TEXT))
+
+        for link_text, url in matches:
+            parts = remaining_text.split(f"[{link_text}]({url})", 1)
+            before_link_text = parts[0]
+            if before_link_text:
+                new_nodes.append(TextNode(before_link_text, TextType.TEXT))
             new_nodes.append(TextNode(link_text, TextType.LINK, url))
-            text = parts[1]
+            remaining_text = parts[1]
         
-        if text:
-            new_nodes.append(TextNode(text, TextType.TEXT))
+        if remaining_text:
+            new_nodes.append(TextNode(remaining_text, TextType.TEXT))
 
     return new_nodes
 
-def text_to_textnodes(text):
-    nodes = [TextNode(text, TextType.TEXT)]
-    nodes = split_nodes_delimiter(nodes, "`", TextType.CODE)
-    nodes = split_nodes_delimiter(nodes, "**", TextType.BOLD)
-    nodes = split_nodes_delimiter(nodes, "__", TextType.BOLD)
-    nodes = split_nodes_delimiter(nodes, "*", TextType.ITALIC)
-    nodes = split_nodes_delimiter(nodes, "_", TextType.ITALIC)
-    nodes = split_nodes_image(nodes)
-    nodes = split_nodes_link(nodes)
-    return nodes
-
-def text_to_children(text):
-    nodes = text_to_textnodes(text)
-    children = [text_node_to_html_node(node) for node in nodes]
-    return children
-
 def markdown_to_blocks(markdown):
-    blocks = markdown.split("\n\n")
-    filtered_blocks = []
-    for block in blocks:
-        if block.strip() != "":
-            filtered_blocks.append(block.strip())
-    return filtered_blocks
+    blocks = re.split(r"(?:\n{2,})+", markdown.strip())
+    return [block.strip() for block in blocks if block.strip()]
 
 def block_to_block_type(block):
-    lines = block.split("\n")
-    if block.startswith("#"):
+    lines = block.split('\n')
+    if re.match(r"^#{1,6}\s", lines[0]):
         return BlockType.HEADING
-    elif block.startswith("```") and block.endswith("```"):
+    
+    if len(lines) > 1 and all(line.startswith('>') for line in lines):
+        return BlockType.QUOTE
+    
+    if block.startswith("```") and block.endswith("```"):
         return BlockType.CODE
-    elif block.startswith(">"):
-        is_quote = True
-        for line in lines:
-            if not line.startswith(">"):
-                is_quote = False
-        if is_quote:
-            return BlockType.QUOTE
-    elif block.startswith("* ") or block.startswith("- "):
-        is_ul = True
-        for line in lines:
-            if not (line.startswith("* ") or line.startswith("- ")):
-                is_ul = False
-        if is_ul:
-            return BlockType.UNORDERED_LIST
-    elif block.startswith("1. "):
-        is_ol = True
-        for i, line in enumerate(lines, 1):
-            if not line.startswith(f"{i}. "):
-                is_ol = False
-        if is_ol:
-            return BlockType.ORDERED_LIST
+
+    if all(line.startswith(('* ', '- ')) for line in lines):
+        return BlockType.UNORDERED_LIST
+
+    if all(re.match(r"^\d+\.\s", line) for line in lines):
+        return BlockType.ORDERED_LIST
+
     return BlockType.PARAGRAPH
 
 def block_to_paragraph(block):
-    return ParentNode("p", text_to_children(block))
+    children = text_to_children(block)
+    return ParentNode("p", children)
 
 def block_to_heading(block):
-    level = block.count("#")
-    text = block.lstrip("# ").strip()
-    return ParentNode(f"h{level}", text_to_children(text))
+    match = re.match(r"^(#{1,6})\s(.*)", block, re.DOTALL)
+    if not match:
+        raise ValueError("Invalid heading block")
+    level = len(match.group(1))
+    text = match.group(2).strip()
+    children = text_to_children(text)
+    return ParentNode(f"h{level}", children)
 
 def block_to_code(block):
-    text = block.strip("`")
-    return ParentNode("pre", [ParentNode("code", text_to_children(text))])
+    text = block[3:-3].strip()
+    children = text_to_children(text)
+    return ParentNode("pre", [ParentNode("code", children)])
 
 def block_to_quote(block):
-    lines = block.split("\n")
-    text = " ".join([line.lstrip('>') for line in lines])
-    return ParentNode("blockquote", text_to_children(text))
-
+    lines = block.split('\n')
+    text = "\n".join(line.lstrip('> ').strip() for line in lines)
+    children = text_to_children(text)
+    return ParentNode("blockquote", children)
+    
 def block_to_ul(block):
     items = block.split('\n')
     children = []
     for item in items:
-        text = item.lstrip('-* ')
+        # CORRECTED: Use explicit stripping to avoid removing part of markdown
+        if item.startswith("* "):
+            text = item[2:]
+        elif item.startswith("- "):
+            text = item[2:]
+        else:
+            text = item 
+        
         children.append(ParentNode("li", text_to_children(text)))
     return ParentNode("ul", children)
 
@@ -183,6 +168,7 @@ def block_to_ol(block):
     items = block.split('\n')
     children = []
     for item in items:
+        # Logic to strip the number and dot (e.g., "1. ")
         text = item.split('.', 1)[1].lstrip()
         children.append(ParentNode("li", text_to_children(text)))
     return ParentNode("ol", children)
@@ -208,11 +194,9 @@ def markdown_to_html_node(markdown):
             raise Exception("Invalid block type")
     return ParentNode("div", children)
 
-
 def extract_title(markdown):
     lines = markdown.split("\n")
     for line in lines:
-        stripped_line = line.strip()
-        if stripped_line.startswith("# "):
-            return stripped_line.lstrip("# ")
-    raise Exception("No h1 header found")
+        if line.startswith("# "):
+            return line[2:].strip()
+    raise Exception("Markdown document must have a single h1 heading")
