@@ -1,26 +1,23 @@
-# Statis Website Generator
+# Static Website Generator
 
 This is a python program that generates a static website.
 
 ## Description
 
-This project is a simple static-site generator written in Python. The core purpose is to parse Markdown text and convert it into HTML, providing a basic, yet powerful, tool for creating static websites.
+This project is a foundational static-site generator written in Python, designed to function as a clear, modular application demonstrating core backend competencies. The main technical challenge was designing an efficient parsing pipeline that handles the conversion of unstructured Markdown input into a structured HTML output. The implementation demonstrates robust file system traversal (I/O operations) and a clear separation between the data models (TextNode) and the presentation layer (HTMLNode), a core principle for scalable API and microservices design.
 
-The project is structured with a `src` directory for all source code, including classes for representing different text types and HTML nodes.
+
+🧠 Rationale & Architectural Design
+
+The architecture was designed to enforce separation of concerns—a critical practice for back-end scalability and testability:
+
+    Parsing & I/O Isolation: The conversion logic (text_node_to_html_node) is deliberately isolated from the core data structures and HTML rendering. This ensures the I/O component can be cleanly replaced or optimized (e.g., swapping Python's file handlers for Go's concurrent I/O with Goroutines in a future iteration).
+
+    Testability: The core logic is built around unit tests for every function (test_split_nodes_delimiter), confirming the application's ability to maintain high data integrity as new features are introduced.
+
+    Design Pattern: The use of ParentNode and LeafNode implements a basic Composite Pattern, which is essential for managing hierarchical data structures—a skill directly transferable to designing complex REST API payloads.
 
 ## Getting Started
-
-### Prerequisites
-
-* Python 3.x is required. You can check your version by running:
-    ```bash
-    python3 --version
-    ```
-* `unittest` (Python's standard testing library) is used for running tests.
-
-### Installation
-
-No special installation is required. Simply clone the repository.
 
 ```bash
 git clone [https://github.com/Numpkens/static-site-gen.git(https://github.com/Numpkens/static-site-gen.git])
@@ -53,6 +50,7 @@ Bash
     ├── main.py
     ├── textnode.py
     └── htmlnode.py
+
 
 🤝 Contributing
 
